@@ -1,0 +1,1550 @@
+
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+LocalPlayer:WaitForChild("PlayerGui")
+
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Flexozy UI: ใช้ UI ตัวเดียวกับงานก่อนหน้า
+local UI_URL = "https://raw.githubusercontent.com/LoaderHub1990/Flexozy-UI/main/FlexozyUI.lua"
+local okUI, Flexozy = pcall(function()
+    return loadstring(game:HttpGet(UI_URL))()
+end)
+if not okUI or type(Flexozy) ~= "table" or type(Flexozy.CreateWindow) ~= "function" then
+    warn("Flexozy UI โหลดไม่สำเร็จ: " .. tostring(Flexozy))
+    return
+end
+
+local Window = Flexozy:CreateWindow({
+    Title = "Flexozy",
+    SubTitle = "1 Stone Skipping",
+    Monogram = "FX",
+    Logo = 112028775617493,
+    Size = Vector2.new(720, 520),
+    Accent = "Violet",
+    ToggleKey = Enum.KeyCode.RightControl,
+    Language = "TH",
+    LanguageScope = "All",
+    Folder = "Flexozy",
+    ConfigName = "1StoneSkipping"
+})
+
+if type(Window.AddTranslations) == "function" then
+    Window:AddTranslations({
+        ["Main"] = "หน้าหลัก",
+        ["Movement"] = "การเคลื่อนที่",
+        ["Auto Play"] = "เล่นอัตโนมัติ",
+        ["Auto Farm"] = "ฟาร์มอัตโนมัติ",
+        ["Auto Egg Hatch"] = "ฟักไข่อัตโนมัติ",
+        ["Settings"] = "ตั้งค่า",
+        ["Speed"] = "ความเร็ว",
+        ["Anti Kick"] = "ป้องกันการถูกเตะ",
+        ["Auto Buy Stone"] = "ซื้อหินอัตโนมัติ",
+        ["Auto Win"] = "ชนะอัตโนมัติ",
+        ["Auto Skill"] = "ใช้สกิลอัตโนมัติ",
+        ["Auto Rebirth"] = "เกิดใหม่อัตโนมัติ",
+        ["Auto Equip Best Pets"] = "สวมใส่สัตว์เลี้ยงที่ดีที่สุดอัตโนมัติ",
+        ["Auto Claim Playtime Rewards"] = "รับรางวัลเวลาเล่นอัตโนมัติ",
+        ["Enable"] = "เปิดใช้งาน",
+        ["Select Egg"] = "เลือกไข่",
+        ["Module Toggled"] = "เปลี่ยนสถานะระบบ",
+        ["Speed has been"] = "ความเร็วถูก",
+        ["Enabled"] = "เปิดใช้งานแล้ว",
+        ["Disabled"] = "ปิดใช้งานแล้ว",
+        ["Theme and UI Options"] = "ธีมและตัวเลือก UI",
+        ["UI Settings"] = "การตั้งค่า UI"
+    })
+    Window:SetLanguageScope("All")
+end
+
+-- ใช้ไอคอนให้ตรงกับหน้าที่ของแต่ละแท็บ
+local TAB_LOGO = 112028775617493
+local MainTab = Window:Tab({Title = "Main", Icon = 10723407389, Subtitle = "Overview and Discord"})
+local AutoPlayTab = Window:Tab({Title = "Auto Play", Icon = Flexozy.Icons.Refresh, Subtitle = "Automatic gameplay controls"})
+local AutoFarmTab = Window:Tab({Title = "Auto Farm", Icon = Flexozy.Icons.Sword, Subtitle = "Automatic farming controls"})
+local AutoEggTab = Window:Tab({Title = "Auto Egg Hatch", Icon = Flexozy.Icons.Grid, Subtitle = "Egg hatching controls"})
+local MovementTab = Window:Tab({Title = "Movement", Icon = Flexozy.Icons.Teleport, Subtitle = "Movement controls"})
+local SettingsTab = Window:Tab({Title = "Settings", Icon = Flexozy.Icons.Settings, Subtitle = "Theme and UI options"})
+
+if type(Window.BuildHome) == "function" then
+    pcall(function() Window:BuildHome(MainTab) end)
+end
+if type(Window.BuildDiscord) == "function" then
+    pcall(function() Window:BuildDiscord(MainTab, "https://discord.gg/WFUejxeggt") end)
+end
+if type(Window.BuildSettings) == "function" then
+    pcall(function() Window:BuildSettings(SettingsTab) end)
+end
+
+-- Compatibility adapter: keep the original gameplay code and connect its controls to Flexozy.
+local activeTab = MainTab
+local activeGroup = nil
+local function CreateSidebarButton() end
+local function CreateTab(name)
+    if name == "Main" then
+        activeTab = MainTab
+    elseif name == "Auto Play" then
+        activeTab = AutoPlayTab
+    elseif name == "Auto Farm" then
+        activeTab = AutoFarmTab
+    elseif name == "Auto Egg Hatch" then
+        activeTab = AutoEggTab
+    elseif name == "Movement" then
+        activeTab = MovementTab
+    elseif name == "Settings" then
+        activeTab = SettingsTab
+    end
+end
+local function ShowTab(name)
+    CreateTab(name)
+end
+local function CreateBlock(title)
+    activeGroup = activeTab:Group(title)
+end
+local function EndBlock()
+    activeGroup = nil
+end
+local function CreateToggle(title, callback)
+    if activeGroup then
+        return activeGroup:Toggle({Title = title, Callback = callback})
+    end
+end
+local function CreateActiveKeybind(config)
+    if activeGroup then
+        return activeGroup:Toggle({Title = config.Text or "Enable", Callback = config.Callback})
+    end
+end
+local function CreateSlider(config)
+    if activeGroup then
+        return activeGroup:Slider({
+            Title = config.Text,
+            Min = config.Min,
+            Max = config.Max,
+            Default = config.Default,
+            Step = config.Step or 1,
+            Callback = config.Callback
+        })
+    end
+end
+local function CreateDropdown(config)
+    if not activeGroup then return nil end
+    local control = activeGroup:Dropdown({
+        Title = config.Text,
+        Options = config.List or {},
+        Default = config.Default,
+        Callback = config.Callback
+    })
+    -- Preserve the original Clear/Add calls when changing worlds; use native methods if available.
+    local adapter = {}
+    function adapter:Clear()
+        if control and type(control.Clear) == "function" then
+            pcall(function() control:Clear() end)
+        elseif control and type(control.SetOptions) == "function" then
+            pcall(function() control:SetOptions({}) end)
+        end
+    end
+    function adapter:Add(options)
+        if control and type(control.Add) == "function" then
+            pcall(function() control:Add(options) end)
+        elseif control and type(control.SetOptions) == "function" then
+            pcall(function() control:SetOptions(options) end)
+        end
+    end
+    return adapter
+end
+local function CreateNotification(title, message, duration, status)
+    if type(Window.Notify) == "function" then
+        pcall(function()
+            Window:Notify({
+                Title = tostring(title or "Flexozy"),
+                Content = tostring(message or "") .. " " .. tostring(status or ""),
+                Type = status == "Disabled" and "Warning" or "Success",
+                Duration = duration or 2
+            })
+        end)
+    end
+end
+
+task.spawn(function()
+    while true do
+        local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
+
+        if PlayerGui then
+            local Notifications = PlayerGui:FindFirstChild("Notifications")
+
+            if Notifications then
+                Notifications:Destroy()
+            end
+        end
+
+        task.wait(5)
+    end
+end)
+
+local SkippingNetwork = ReplicatedStorage:WaitForChild("SkippingNetwork")
+local Request = SkippingNetwork:WaitForChild("Request")
+local Event = SkippingNetwork:WaitForChild("Event")
+local GameBalance = require(ReplicatedStorage.Shared.Config.GameBalance)
+
+require(ReplicatedStorage.Shared.Config.Worlds)
+
+local t1 = {
+	World1 = {
+		"Common",
+		"Uncommon",
+		"Rare"
+	},
+	World2 = {
+		"Epic",
+		"Legendary",
+		"Mythical"
+	},
+	World3 = {
+		"SpaceDivine",
+		"Ascended",
+		"Eternal"
+	},
+	World4 = {
+		"Celestial",
+		"Transcendent",
+		"Empyrean"
+	},
+	World5 = {
+		"Primordial",
+		"Titan",
+		"Infinity"
+	}
+}
+local t2 = {
+	Enabled = false,
+	Thread = nil,
+	IsBusy = false
+}
+local t3 = {
+	Enabled = false
+}
+local t4 = {
+	Enabled = false
+}
+local t5 = {
+	Enabled = false,
+	CurrentDeck = nil
+}
+local t6 = {
+	Enabled = false,
+	CurrentLevel = 0,
+	NextLevel = 1e999,
+	Rebirths = 0
+}
+local t7 = {
+	Enabled = false,
+	Thread = nil
+}
+local t8 = {
+	Enabled = false,
+	Thread = nil
+}
+local t9 = {
+	Enabled = false,
+	SelectedEgg = "Common",
+	DropdownRef = nil
+}
+local t10 = {
+	PlayerState = nil,
+	ThrowCounter = 0,
+	HatchRequestId = 9000,
+	AntiKick = t2,
+	AutoBuyStone = t3,
+	AutoWin = t4,
+	AutoSkill = t5,
+	AutoRebirth = t6,
+	AutoEquipPets = t7,
+	AutoClaim = t8,
+	AutoHatch = t9,
+	AutoFarm = {
+		Enabled = false,
+		EggOpenTarget = 3,
+		EggOpens = {}
+	}
+}
+Event.OnClientEvent:Connect(function(p1, p2)
+    local v91 = p1 == "State"
+
+    if v91 then
+        v91 = type(p2) == "table"
+    end
+
+    if v91 then
+        if not t10.PlayerState then
+            t10.PlayerState = p2
+        else
+            for k, v in pairs(p2) do
+                t10.PlayerState[k] = v
+            end
+        end
+
+        if p2.Level then
+            t10.AutoRebirth.CurrentLevel = p2.Level
+        end
+
+        if p2.NextRebirthLevel then
+            t10.AutoRebirth.NextLevel = p2.NextRebirthLevel
+        end
+
+        if p2.Rebirths then
+            t10.AutoRebirth.Rebirths = p2.Rebirths
+        end
+
+        local AutoRebirthEnabled = t10.AutoRebirth.Enabled
+
+        if AutoRebirthEnabled then
+            AutoRebirthEnabled = t10.AutoRebirth.CurrentLevel >= t10.AutoRebirth.NextLevel
+
+            if AutoRebirthEnabled then
+                AutoRebirthEnabled = t10.AutoRebirth.NextLevel > 0
+            end
+        end
+
+        if AutoRebirthEnabled then
+            Request:FireServer("Rebirth", t10.AutoRebirth.Rebirths)
+        end
+    end
+end)
+Request:FireServer("Sync", nil)
+
+local t11 = {
+	{
+		cost = 2,
+		id = "slate"
+	},
+	{
+		cost = 10,
+		id = "jade"
+	},
+	{
+		cost = 40,
+		id = "sunstone"
+	},
+	{
+		cost = 150,
+		id = "wood_slice"
+	},
+	{
+		cost = 500,
+		id = "roof_tile"
+	},
+	{
+		cost = 1500,
+		id = "bottle_cap"
+	},
+	{
+		cost = 4500,
+		id = "lucky_coin"
+	},
+	{
+		cost = 14000,
+		id = "hockey_puck"
+	},
+	{
+		cost = 40000,
+		id = "frisbee"
+	}
+}
+local t12 = {
+	cost = 60000,
+	id = "playing_card"
+}
+local t13 = {
+	cost = 150000,
+	id = "cookie"
+}
+local t14 = {
+	cost = 400000,
+	id = "waffle"
+}
+local t15 = {
+	cost = 1000000,
+	id = "donut"
+}
+local t16 = {
+	cost = 2500000,
+	id = "watermelon"
+}
+local t17 = {
+	cost = 6000000,
+	id = "shuriken"
+}
+local t18 = {
+	cost = 20000000,
+	id = "rune"
+}
+local t19 = {
+	cost = 60000000,
+	id = "meteorite"
+}
+local t20 = {
+	cost = 175000000,
+	id = "turtle_shell"
+}
+local t21 = {
+	cost = 500000000,
+	id = "ufo"
+}
+local t22 = {
+	{
+		cost = 400000000,
+		id = "lily_pad"
+	},
+	{
+		cost = 1250000000,
+		id = "mushroom_cap"
+	},
+	{
+		cost = 3000000000,
+		id = "domino_tile"
+	},
+	{
+		cost = 7000000000,
+		id = "paper_airplane"
+	},
+	{
+		cost = 15000000000,
+		id = "pizza_slice"
+	},
+	{
+		cost = 40000000000,
+		id = "cogwheel"
+	},
+	{
+		cost = 80000000000,
+		id = "ice_snowflake"
+	},
+	{
+		cost = 175000000000,
+		id = "pocket_compass"
+	},
+	{
+		cost = 350000000000,
+		id = "closed_spellbook"
+	},
+	{
+		cost = 700000000000,
+		id = "crystal_heart"
+	}
+}
+local t23 = {
+	{
+		cost = 500000000000,
+		id = "sewing_button"
+	},
+	{
+		cost = 2500000000000,
+		id = "maple_leaf"
+	},
+	{
+		cost = 7000000000000,
+		id = "hex_nut"
+	},
+	{
+		cost = 15000000000000,
+		id = "fried_egg"
+	},
+	{
+		cost = 35000000000000,
+		id = "jigsaw_piece"
+	},
+	{
+		cost = 75000000000000,
+		id = "chocolate_bar"
+	},
+	{
+		cost = 175000000000000,
+		id = "horseshoe"
+	},
+	{
+		cost = 400000000000000,
+		id = "boomerang"
+	},
+	{
+		cost = 900000000000000,
+		id = "golden_ticket"
+	},
+	{
+		cost = 2000000000000000,
+		id = "kite_shield"
+	}
+}
+local t24 = {
+	cost = 600000000000000,
+	id = "lava_rock"
+}
+local t25 = {
+	cost = 10000000000000000,
+	id = "toast_slice"
+}
+local t26 = {
+	cost = 60000000000000000,
+	id = "macaron"
+}
+local t27 = {
+	cost = 4E+17,
+	id = "pretzel"
+}
+local t28 = {
+	cost = 2.5E+18,
+	id = "vinyl_record"
+}
+local t29 = {
+	cost = 1.5E+19,
+	id = "ship_wheel"
+}
+local t30 = {
+	cost = 7.5E+19,
+	id = "skateboard"
+}
+local t31 = {
+	cost = 4E+20,
+	id = "frying_pan"
+}
+local t32 = {
+	cost = 2.5E+21,
+	id = "eclipse_core"
+}
+local t33 = {
+	World1 = t11,
+	World2 = {
+		t12,
+		t13,
+		t14,
+		t15,
+		t16,
+		t17,
+		t18,
+		t19,
+		t20,
+		t21
+	},
+	World3 = t22,
+	World4 = t23,
+	World5 = {
+		t24,
+		t25,
+		t26,
+		t27,
+		t28,
+		t29,
+		t30,
+		t31,
+		t32,
+		{
+			cost = 1.2E+22,
+			id = "dragon_scale"
+		}
+	}
+}
+local t34 = {
+	k = 1000,
+	m = 1000000,
+	b = 1000000000,
+	t = 1000000000000,
+	qa = 1000000000000000,
+	qi = 1E+18,
+	sx = 1E+21,
+	sp = 1E+24,
+	oc = 1E+27,
+	no = 1E+30,
+	dc = 1E+33
+}
+local function v62(p3)
+    if type(p3) == "number" then
+        return p3
+    end
+
+    if type(p3) ~= "string" then
+        p3 = tostring(p3)
+    end
+
+    local v96 = p3:gsub("%s+", ""):gsub(",", ""):lower()
+    local num = tonumber(v96)
+
+    if num then
+        return num
+    end
+
+    local v98, v99 = v96:match("^([%d%.]+)(%a+)$")
+
+    if v98 and v99 then
+        local num2 = tonumber(v98)
+        local v101 = t34[v99]
+
+        if num2 and v101 then
+            return num2 * v101
+        end
+    end
+
+    return 0
+end
+local function v63()
+    return LocalPlayer:GetAttribute("SkippingWorld") or "World1"
+end
+local function v64()
+    local SkippingWorlds = workspace:FindFirstChild("SkippingWorlds")
+
+    if not SkippingWorlds then
+        return nil
+    end
+
+    return SkippingWorlds:FindFirstChild((v63())) or SkippingWorlds:GetChildren()[1]
+end
+local function v65()
+    local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
+
+    if leaderstats then
+        local Wins = leaderstats:FindFirstChild("Wins")
+
+        if Wins then
+            return v62(Wins.Value)
+        end
+    end
+
+    return 0
+end
+local function v66(p4)
+    local PlayerState = t10.PlayerState
+
+    if PlayerState then
+        PlayerState = t10.PlayerState.OwnedStones
+    end
+
+    if PlayerState then
+        return t10.PlayerState.OwnedStones[p4] == true
+    end
+
+    return false
+end
+local function v67()
+    local v127 = t33[v63()]
+    if not v127 then
+        return nil
+    end
+    local v128 = v65()
+    local id
+    for _, v in ipairs(v127) do
+        local v132 = v128 >= v.cost
+
+        if v132 then
+            v132 = not v66(v.id)
+        end
+
+        if v132 then
+            id = v.id
+        end
+    end
+
+    return id
+end
+local function v68()
+    local SkippingWorlds = workspace:FindFirstChild("SkippingWorlds")
+    local v117 = v63()
+
+    if SkippingWorlds then
+        local v118 = SkippingWorlds:FindFirstChild(v117)
+
+        if v118 then
+            local LaunchZone = v118:FindFirstChild("LaunchZone", true)
+            local v120 = LaunchZone
+
+            if LaunchZone then
+                v120 = LaunchZone:IsA("BasePart")
+            end
+
+            if v120 then
+                return LaunchZone
+            end
+        end
+
+        local GetDescendants = SkippingWorlds.GetDescendants
+
+        for _, v in ipairs(GetDescendants(SkippingWorlds)) do
+            local v124 = v.Name == "LaunchZone"
+
+            if v124 then
+                v124 = v:IsA("BasePart")
+            end
+
+            if v124 then
+                return v
+            end
+        end
+    end
+
+    return workspace:FindFirstChild("LaunchZone", true)
+end
+local function v69(p5)
+    local Character = LocalPlayer.Character
+    local v111 = Character
+
+    if Character then
+        v111 = Character:FindFirstChild("HumanoidRootPart")
+    end
+
+    if Character then
+        Character = Character:FindFirstChildOfClass("Humanoid")
+    end
+
+    local v112 = v111
+
+    if v111 then
+        v112 = p5 and Character
+    end
+
+    if v112 then
+        local v113 = p5.CFrame:PointToObjectSpace(v111.Position)
+        local v114 = p5.Size / 2
+        local v115 = math.abs(v113.X) <= v114.X - 1
+
+        if v115 then
+            v115 = math.abs(v113.Z) <= v114.Z - 1
+        end
+
+        if not v115 then
+            v111.AssemblyLinearVelocity = Vector3.zero
+            v111.AssemblyAngularVelocity = Vector3.zero
+            v111.CFrame = p5.CFrame * CFrame.new(0, p5.Size.Y / 2 + Character.HipHeight + 1.5, 0)
+            task.wait(0.2)
+        end
+    end
+end
+local function v70()
+    Request:FireServer("StopPractice")
+end
+local function u71()
+    local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
+
+    if leaderstats then
+        local Rebirths = leaderstats:FindFirstChild("Rebirths")
+
+        if Rebirths then
+            return v62(Rebirths.Value)
+        end
+    end
+
+    return t10.AutoRebirth.Rebirths or 0
+end
+local function v72()
+    local SkippingWorlds = workspace:FindFirstChild("SkippingWorlds")
+    local v135 = if SkippingWorlds then SkippingWorlds:FindFirstChild((v63())) or SkippingWorlds:GetChildren()[1] else nil
+
+    if not v135 then
+        return nil
+    end
+
+    local TrainingZones = v135:FindFirstChild("TrainingZones")
+
+    if not TrainingZones then
+        return nil
+    end
+
+    local Name = v135.Name
+    local v138 = u71()
+    local v139 = TrainingZones:FindFirstChild(if Name ~= "World5" then if Name ~= "World4" then if Name ~= "World3" then if Name ~= "World2" then if not (v138 >= 6) then if not (v138 >= 4) then not (v138 >= 2) and "TrainingZone" or "TrainingZone_RareJade" else "TrainingZone_EpicCrystal" else "TrainingZone_LegendaryCelestial" else if not (v138 >= 30) then if not (v138 >= 20) then not (v138 >= 10) and "TrainingZone" or "TrainingZone_RareJade" else "TrainingZone_EpicCrystal" else "TrainingZone_LegendaryCelestial" else if not (v138 >= 100) then if not (v138 >= 75) then not (v138 >= 50) and "TrainingZone" or "TrainingZone_RareJade" else "TrainingZone_EpicCrystal" else "TrainingZone_LegendaryCelestial" else if not (v138 >= 250) then if not (v138 >= 200) then not (v138 >= 150) and "TrainingZone" or "TrainingZone_RareJade" else "TrainingZone_EpicCrystal" else "TrainingZone_LegendaryCelestial" else if not (v138 >= 375) then if not (v138 >= 325) then not (v138 >= 275) and "TrainingZone" or "TrainingZone_RareJade" else "TrainingZone_EpicCrystal" else "TrainingZone_LegendaryCelestial")
+
+    if v139 then
+        local ThrowingDeck = v139:FindFirstChild("ThrowingDeck")
+
+        if ThrowingDeck then
+            return ThrowingDeck:FindFirstChild("DeckFrame", true)
+        end
+    end
+
+    return nil
+end
+local function v73()
+    local v133 = t10.AutoRebirth.CurrentLevel >= t10.AutoRebirth.NextLevel
+
+    if v133 then
+        v133 = t10.AutoRebirth.NextLevel > 0
+    end
+
+    if v133 then
+        Request:FireServer("Rebirth", t10.AutoRebirth.Rebirths)
+    end
+end
+local function v74(p6)
+    local v126 = t1[p6]
+
+    if not v126 then
+        v126 = t1.World1
+    end
+
+    return v126
+end
+local function v75(p7)
+    local v142 = v64()
+
+    if v142 then
+        v142 = v142:FindFirstChild("EggShop")
+    end
+
+    if v142 then
+        v142 = v142:FindFirstChild("Displays")
+    end
+
+    if not v142 then
+        return nil
+    end
+
+    local p7_2 = v142:FindFirstChild(p7)
+
+    if not p7_2 then
+        for _, child in ipairs(v142:GetChildren()) do
+            if string.find(string.lower(child.Name), string.lower(p7)) then
+                return child
+            end
+        end
+    end
+
+    return p7_2
+end
+local function u76(p8)
+    local v155 = v75(p8)
+
+    if v155 then
+        local Wins = v155:GetAttribute("Wins")
+
+        if typeof(Wins) == "number" then
+            return Wins
+        end
+    end
+
+    return 0
+end
+local function v77()
+    local v157 = v63()
+    local v158 = v74(v157)
+    local v159 = v65()
+
+    for _, v in ipairs(v158) do
+        local v162 = v157 .. "_" .. v
+
+        if (t10.AutoFarm.EggOpens[v162] or 0) < t10.AutoFarm.EggOpenTarget then
+            local v163 = u76(v)
+
+            if v163 <= 0 or v163 <= v159 then
+                return v, v162, display
+            end
+
+            return nil, nil, nil
+        end
+    end
+
+    return nil, nil, nil
+end
+local function v78()
+    local v146 = v63()
+    local SkippingWorlds = workspace:FindFirstChild("SkippingWorlds")
+
+    if not SkippingWorlds then
+        return nil
+    end
+
+    local v148 = SkippingWorlds:FindFirstChild(v146)
+
+    if v148 then
+        local LobbyGeometry = v148:FindFirstChild("LobbyGeometry")
+        local v150 = LobbyGeometry and LobbyGeometry:FindFirstChild("Paths")
+
+        if v150 then
+            v150 = v150:FindFirstChild("MainPath")
+        end
+
+        if v150 then
+            if v150:IsA("BasePart") then
+                return v150
+            end
+
+            if v150:IsA("Model") then
+                return v150:FindFirstChildWhichIsA("BasePart", true) or v150.PrimaryPart
+            end
+        end
+    end
+
+    for i = 1, 5 do
+        local v152 = SkippingWorlds:FindFirstChild("World" .. i)
+
+        if not v152 then
+            continue
+        end
+
+        local LobbyGeometry = v152:FindFirstChild("LobbyGeometry")
+
+        if LobbyGeometry then
+            LobbyGeometry = LobbyGeometry:FindFirstChild("Paths")
+        end
+
+        if LobbyGeometry then
+            LobbyGeometry = LobbyGeometry:FindFirstChild("MainPath")
+        end
+
+        if not LobbyGeometry then
+            continue
+        end
+
+        if LobbyGeometry:IsA("BasePart") then
+            return LobbyGeometry
+        end
+
+        if LobbyGeometry:IsA("Model") then
+            return LobbyGeometry:FindFirstChildWhichIsA("BasePart", true) or LobbyGeometry.PrimaryPart
+        end
+    end
+
+    return nil
+end
+local function v79()
+    if t10.AntiKick.Thread then
+        task.cancel(t10.AntiKick.Thread)
+        t10.AntiKick.Thread = nil
+    end
+
+    t10.AntiKick.IsBusy = false
+end
+local function v80()
+    v79()
+    t10.AntiKick.Thread = task.spawn(function()
+        while t10.AntiKick.Enabled do
+            task.wait(900)
+
+            if t10.AntiKick.Enabled then
+                local v215 = v78()
+
+                if v215 then
+                    t10.AntiKick.IsBusy = true
+                    pcall(function()
+                        v70()
+
+                        local Character = LocalPlayer.Character
+                        local v241 = Character
+
+                        if Character then
+                            v241 = Character:FindFirstChild("HumanoidRootPart")
+                        end
+
+                        local v242 = Character and Character:FindFirstChildOfClass("Humanoid")
+                        local v243 = v241
+
+                        if v241 then
+                            v243 = v242 and v242.Health > 0
+                        end
+
+                        if v243 then
+                            v241.AssemblyLinearVelocity = Vector3.zero
+                            v241.AssemblyAngularVelocity = Vector3.zero
+                            v241.CFrame = v215.CFrame * CFrame.new(0, v242.HipHeight + 2, 0)
+                            task.wait(0.2)
+
+                            local elapsed = os.clock()
+                            local _Vector3 = Vector3
+                            local v246 = elapsed + 4
+                            local t35 = {
+								_Vector3.new(1, 0, 0),
+								Vector3.new(-1, 0, 0),
+								Vector3.new(0, 0, 1),
+								Vector3.new(0, 0, -1)
+							}
+
+                            while true do
+                                local v248 = v246 > os.clock()
+
+                                if v248 then
+                                    v248 = t10.AntiKick.Enabled
+                                end
+
+                                if not v248 then
+                                    break
+                                end
+
+                                v242:Move(t35[math.random(1, #t35)], false)
+                                VirtualInputManager:SendMouseMoveEvent(math.random(10, 50), math.random(10, 50), game)
+                                task.wait(0.5)
+                            end
+
+                            v242:Move(Vector3.zero, false)
+                            v241.AssemblyLinearVelocity = Vector3.zero
+                            v241.AssemblyAngularVelocity = Vector3.zero
+                        end
+                    end)
+                    t10.AntiKick.IsBusy = false
+                    t10.AutoSkill.CurrentDeck = nil
+                end
+            end
+        end
+    end)
+end
+task.spawn(function()
+    while true do
+        task.wait(0.2)
+
+        if not t10.AntiKick.IsBusy then
+            local v164
+            if t10.AutoBuyStone.Enabled then
+                v164 = v67()
+            end
+            if v164 then
+                Request:FireServer("Buy", v164)
+                task.wait(0.1)
+                Request:FireServer("Equip", v164)
+                task.wait(0.3)
+                Request:FireServer("Sync", nil)
+                task.wait(0.5)
+            elseif t10.AutoFarm.Enabled and v77() ~= nil then
+                local v165, v166 = v77()
+
+                if v165 then
+                    if t10.AutoSkill.CurrentDeck then
+                        v70()
+                        t10.AutoSkill.CurrentDeck = nil
+                    end
+
+                    local Character = LocalPlayer.Character
+                    local v168 = Character and Character:FindFirstChild("HumanoidRootPart")
+                    local v169 = v75(v165)
+
+                    if v168 and v169 then
+                        local Position = v169:GetPivot().Position
+
+                        if (v168.Position - Position).Magnitude > 7 then
+                            v168.CFrame = CFrame.new(Position + Vector3.new(0, 3, 4), Position)
+                            task.wait(0.2)
+                        end
+                    end
+
+                    t10.HatchRequestId = t10.HatchRequestId + 1
+
+                    local v171 = v169 and v169.Name or v165
+                    local v172 = Request
+                    local HatchRequestId = t10.HatchRequestId
+
+                    v172:FireServer("HatchEgg", {
+						EggId = v171,
+						Count = 1,
+						RequestId = HatchRequestId
+					})
+                    t10.AutoFarm.EggOpens[v166] = (t10.AutoFarm.EggOpens[v166] or 0) + 1
+                    task.wait(0.4)
+                end
+            elseif t10.AutoWin.Enabled then
+                if t10.AutoSkill.CurrentDeck then
+                    v70()
+                    t10.AutoSkill.CurrentDeck = nil
+                end
+
+                local v174 = v68()
+
+                if v174 then
+                    v69(v174)
+                end
+
+                local PlayerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+                local v176 = PlayerGui and PlayerGui:FindFirstChild("SkippingHUD")
+                local v177 = v176 and v176:FindFirstChild("HUD")
+
+                if v177 then
+                    local Progression = v177:FindFirstChild("Progression")
+
+                    if not Progression then
+                        Progression = v177:FindFirstChild("Bottom")
+                    end
+
+                    v177 = Progression
+                end
+
+                if v177 then
+                    v177 = v177:FindFirstChild("Progression") or v177
+                end
+
+                if v177 then
+                    v177 = v177:FindFirstChild("Throw")
+                end
+
+                local v179 = v177
+
+                if v177 then
+                    v179 = v177.Visible and v177.Active
+                end
+
+                if v179 then
+                    for _, v in pairs(getconnections(v177.InputBegan)) do
+                        v:Fire({
+							UserInputType = Enum.UserInputType.MouseButton1
+						})
+                    end
+                end
+
+                task.wait(1)
+            elseif t10.AutoSkill.Enabled then
+                local v182 = v72()
+                local v183 = v182
+
+                if v182 then
+                    v183 = v182 ~= t10.AutoSkill.CurrentDeck
+                end
+
+                if v183 then
+                    local Character = LocalPlayer.Character
+                    local v185 = Character
+
+                    if Character then
+                        v185 = Character:FindFirstChild("HumanoidRootPart")
+                    end
+
+                    local v186 = Character
+
+                    if Character then
+                        v186 = Character:FindFirstChildOfClass("Humanoid")
+                    end
+
+                    local v187 = v185
+
+                    if v185 then
+                        v187 = v186 and v186.Health > 0
+                    end
+
+                    if v187 then
+                        local v188 = v182.CFrame * CFrame.new(0, v182.Size.Y / 2 + v186.HipHeight + 0.5, 0)
+
+                        v70()
+                        task.wait(0.5)
+                        v185.AssemblyLinearVelocity = Vector3.zero
+                        v185.AssemblyAngularVelocity = Vector3.zero
+                        Character:PivotTo(v185.CFrame * CFrame.new(0, 45, 0))
+                        task.wait(0.3)
+                        v185.AssemblyLinearVelocity = Vector3.zero
+                        v185.AssemblyAngularVelocity = Vector3.zero
+                        Character:PivotTo(v188)
+                        t10.AutoSkill.CurrentDeck = v182
+                    end
+                end
+            elseif t10.AutoHatch.Enabled then
+                if t10.AutoSkill.CurrentDeck then
+                    v70()
+                    t10.AutoSkill.CurrentDeck = nil
+                end
+
+                local Character = LocalPlayer.Character
+
+                if Character then
+                    Character = Character:FindFirstChild("HumanoidRootPart")
+                end
+
+                local v190 = v75(t10.AutoHatch.SelectedEgg)
+
+                if Character and v190 then
+                    local Position = v190:GetPivot().Position
+
+                    if (Character.Position - Position).Magnitude > 7 then
+                        Character.CFrame = CFrame.new(Position + Vector3.new(0, 3, 4), Position)
+                        task.wait(0.2)
+                    end
+                end
+
+                t10.HatchRequestId = t10.HatchRequestId + 1
+
+                if v190 then
+                    v190 = v190.Name
+                end
+
+                if not v190 then
+                    v190 = t10.AutoHatch.SelectedEgg
+                end
+
+                local v192 = Request
+                local FireServer = v192.FireServer
+                local HatchRequestId = t10.HatchRequestId
+
+                FireServer(v192, "HatchEgg", {
+					EggId = v190,
+					Count = 1,
+					RequestId = HatchRequestId
+				})
+                task.wait(0.4)
+            elseif t10.AutoSkill.CurrentDeck then
+                v70()
+                t10.AutoSkill.CurrentDeck = nil
+            end
+        end
+    end
+end)
+CreateTab("Auto Play")
+CreateBlock("Auto Play")
+CreateToggle("Anti Kick", function(p9)
+    t10.AntiKick.Enabled = p9
+
+    if p9 then
+        v80()
+
+        return
+    end
+
+    v79()
+end)
+CreateToggle("Auto Buy Stone", function(p10)
+    t10.AutoBuyStone.Enabled = p10
+end)
+CreateToggle("Auto Win", function(p11)
+    t10.AutoWin.Enabled = p11
+end)
+CreateToggle("Auto Skill", function(p12)
+    t10.AutoSkill.Enabled = p12
+
+    if not p12 then
+        v70()
+        t10.AutoSkill.CurrentDeck = nil
+    end
+end)
+CreateToggle("Auto Rebirth", function(p13)
+    t10.AutoRebirth.Enabled = p13
+
+    if p13 then
+        Request:FireServer("Sync", nil)
+        task.delay(0.2, function()
+            if t10.AutoRebirth.Enabled then
+                v73()
+            end
+        end)
+    end
+end)
+CreateToggle("Auto Equip Best Pets", function(p14)
+    t10.AutoEquipPets.Enabled = p14
+
+    if p14 then
+        t10.AutoEquipPets.Thread = task.spawn(function()
+            while t10.AutoEquipPets.Enabled do
+                Request:FireServer("PetEquipment", {
+					Kind = "Best"
+				})
+                task.wait(1.5)
+            end
+        end)
+
+        return
+    end
+
+    if t10.AutoEquipPets.Thread then
+        task.cancel(t10.AutoEquipPets.Thread)
+        t10.AutoEquipPets.Thread = nil
+    end
+end)
+CreateToggle("Auto Claim Playtime Rewards", function(p15)
+    t10.AutoClaim.Enabled = p15
+
+    if p15 then
+        t10.AutoClaim.Thread = task.spawn(function()
+            while t10.AutoClaim.Enabled do
+                local PlayerState = t10.PlayerState
+                local UnlockSeconds = GameBalance.GiftRewards.UnlockSeconds
+                local ServerTimeNow = workspace:GetServerTimeNow()
+                local v219 = PlayerState
+
+                if PlayerState then
+                    v219 = PlayerState.GiftStartedAt
+
+                    if v219 then
+                        v219 = PlayerState.GiftClaimed
+                    end
+                end
+
+                if v219 then
+                    local v220 = ServerTimeNow - PlayerState.GiftStartedAt
+                    local GiftCooldownUntil = PlayerState.GiftCooldownUntil
+
+                    if GiftCooldownUntil then
+                        GiftCooldownUntil = ServerTimeNow < PlayerState.GiftCooldownUntil
+                    end
+
+                    if not GiftCooldownUntil then
+                        for i, v in ipairs(UnlockSeconds) do
+                            local v224 = i
+
+                            if t10.AutoClaim.Enabled and (PlayerState.GiftClaimed[v224] ~= true and v <= v220) then
+                                Request:FireServer("ClaimGift", v224)
+                                task.wait(0.3)
+                            end
+                        end
+                    end
+                else
+                    Request:FireServer("Sync", nil)
+                end
+
+                task.wait(2)
+            end
+        end)
+
+        return
+    end
+
+    if t10.AutoClaim.Thread then
+        task.cancel(t10.AutoClaim.Thread)
+        t10.AutoClaim.Thread = nil
+    end
+end)
+EndBlock()
+CreateTab("Auto Farm")
+CreateBlock("Auto Farm")
+CreateToggle("Enable", function(p16)
+    t10.AutoFarm.Enabled = p16
+    t10.AntiKick.Enabled = p16
+
+    if p16 then
+        v80()
+    else
+        v79()
+    end
+
+    t10.AutoBuyStone.Enabled = p16
+    t10.AutoWin.Enabled = p16
+    t10.AutoRebirth.Enabled = p16
+
+    if p16 then
+        Request:FireServer("Sync", nil)
+        task.delay(0.2, function()
+            if t10.AutoRebirth.Enabled then
+                v73()
+            end
+        end)
+    end
+
+    t10.AutoEquipPets.Enabled = p16
+
+    if p16 then
+        if t10.AutoEquipPets.Thread then
+            task.cancel(t10.AutoEquipPets.Thread)
+        end
+
+        t10.AutoEquipPets.Thread = task.spawn(function()
+            while t10.AutoEquipPets.Enabled do
+                Request:FireServer("PetEquipment", {
+					Kind = "Best"
+				})
+                task.wait(1.5)
+            end
+        end)
+    elseif t10.AutoEquipPets.Thread then
+        task.cancel(t10.AutoEquipPets.Thread)
+        t10.AutoEquipPets.Thread = nil
+    end
+
+    t10.AutoClaim.Enabled = p16
+
+    if p16 then
+        if t10.AutoClaim.Thread then
+            task.cancel(t10.AutoClaim.Thread)
+        end
+
+        t10.AutoClaim.Thread = task.spawn(function()
+            while t10.AutoClaim.Enabled do
+                local PlayerState = t10.PlayerState
+                local UnlockSeconds = GameBalance.GiftRewards.UnlockSeconds
+                local ServerTimeNow = workspace:GetServerTimeNow()
+                local v228 = PlayerState
+
+                if PlayerState then
+                    v228 = PlayerState.GiftStartedAt
+
+                    if v228 then
+                        v228 = PlayerState.GiftClaimed
+                    end
+                end
+
+                if v228 then
+                    local v229 = ServerTimeNow - PlayerState.GiftStartedAt
+                    local GiftCooldownUntil = PlayerState.GiftCooldownUntil
+
+                    if GiftCooldownUntil then
+                        GiftCooldownUntil = ServerTimeNow < PlayerState.GiftCooldownUntil
+                    end
+
+                    if not GiftCooldownUntil then
+                        for i, v in ipairs(UnlockSeconds) do
+                            local v233 = i
+
+                            if t10.AutoClaim.Enabled and (PlayerState.GiftClaimed[v233] ~= true and v <= v229) then
+                                Request:FireServer("ClaimGift", v233)
+                                task.wait(0.3)
+                            end
+                        end
+                    end
+                else
+                    Request:FireServer("Sync", nil)
+                end
+
+                task.wait(2)
+            end
+        end)
+
+        return
+    end
+
+    if t10.AutoClaim.Thread then
+        task.cancel(t10.AutoClaim.Thread)
+        t10.AutoClaim.Thread = nil
+    end
+end)
+EndBlock()
+CreateTab("Auto Egg Hatch")
+CreateBlock("Auto Egg Hatch")
+CreateToggle("Enable", function(p17)
+    t10.AutoHatch.Enabled = p17
+end)
+
+local v81 = v74(v63())
+
+t10.AutoHatch.SelectedEgg = v81[1]
+
+local AutoHatch = t10.AutoHatch
+local v83 = v81[1]
+
+AutoHatch.DropdownRef = CreateDropdown({
+	Text = "Select Egg",
+	List = v81,
+	Default = v83,
+	Callback = function(p18)
+    t10.AutoHatch.SelectedEgg = p18
+end
+})
+LocalPlayer:GetAttributeChangedSignal("SkippingWorld"):Connect(function()
+    local v205 = v63()
+    local v206 = v74(v205)
+
+    if t10.AutoHatch.DropdownRef then
+        t10.AutoHatch.DropdownRef:Clear()
+        t10.AutoHatch.DropdownRef:Add(v206)
+        t10.AutoHatch.SelectedEgg = v206[1]
+    end
+end)
+EndBlock()
+CreateTab("Movement")
+ShowTab("Movement")
+CreateBlock("Speed")
+
+local t36 = {
+	SpeedHumanoid = nil,
+	SpeedRootPart = nil,
+	SpeedIsEnabled = false,
+	SpeedValue = 16,
+	SpeedStopCallback = nil
+}
+local function v85(p19)
+    t36.SpeedHumanoid = p19:WaitForChild("Humanoid")
+    t36.SpeedRootPart = p19:WaitForChild("HumanoidRootPart")
+
+    if t36.SpeedIsEnabled then
+        if t36.SpeedStopCallback then
+            t36.SpeedStopCallback()
+        end
+        local v209 = t36
+        local connection = RunService.Heartbeat:Connect(function()
+            local v236 = not t36.SpeedRootPart
+
+            if not v236 then
+                v236 = not t36.SpeedRootPart.Parent
+            end
+
+            if v236 then
+                return
+            end
+
+            if t36.SpeedIsEnabled then
+                if not t36.SpeedHumanoid then
+                    return
+                end
+
+                local MoveDirection = t36.SpeedHumanoid.MoveDirection
+
+                if MoveDirection.Magnitude > 0 then
+                    t36.SpeedRootPart.AssemblyLinearVelocity = Vector3.new(MoveDirection.X * t36.SpeedValue, t36.SpeedRootPart.AssemblyLinearVelocity.Y, MoveDirection.Z * t36.SpeedValue)
+
+                    return
+                end
+
+                t36.SpeedRootPart.AssemblyLinearVelocity = Vector3.new(0, t36.SpeedRootPart.AssemblyLinearVelocity.Y, 0)
+            end
+        end)
+        function v209.SpeedStopCallback()
+            connection:Disconnect()
+        end
+    end
+end
+if LocalPlayer.Character then
+    task.spawn(v85, LocalPlayer.Character)
+end
+LocalPlayer.CharacterAdded:Connect(v85)
+CreateActiveKeybind({
+	Text = "Enable",
+	Callback = function(p20)
+    if p20 == t36.SpeedIsEnabled then
+        return
+    end
+
+    t36.SpeedIsEnabled = p20
+
+    if t36.SpeedStopCallback then
+        t36.SpeedStopCallback()
+        t36.SpeedStopCallback = nil
+    end
+
+    if t36.SpeedIsEnabled then
+        local v212 = t36
+        local connection = RunService.Heartbeat:Connect(function()
+            local v238 = not t36.SpeedRootPart
+
+            if not v238 then
+                v238 = not t36.SpeedRootPart.Parent
+            end
+
+            if v238 then
+                return
+            end
+
+            if t36.SpeedIsEnabled then
+                if not t36.SpeedHumanoid then
+                    return
+                end
+
+                local MoveDirection = t36.SpeedHumanoid.MoveDirection
+
+                if MoveDirection.Magnitude > 0 then
+                    t36.SpeedRootPart.AssemblyLinearVelocity = Vector3.new(MoveDirection.X * t36.SpeedValue, t36.SpeedRootPart.AssemblyLinearVelocity.Y, MoveDirection.Z * t36.SpeedValue)
+
+                    return
+                end
+
+                t36.SpeedRootPart.AssemblyLinearVelocity = Vector3.new(0, t36.SpeedRootPart.AssemblyLinearVelocity.Y, 0)
+            end
+        end)
+        function v212.SpeedStopCallback()
+            connection:Disconnect()
+        end
+        CreateNotification("Module Toggled", "Speed has been", 1, "Enabled")
+
+        return
+    end
+
+    CreateNotification("Module Toggled", "Speed has been", 1, "Disabled")
+end
+})
+local SpeedValue = t36.SpeedValue
+CreateSlider({
+	Text = "Speed",
+	Min = 16,
+	Max = 300,
+	Default = SpeedValue,
+	Callback = function(p21)
+    t36.SpeedValue = p21
+end
+})
+EndBlock()
+ShowTab("Main")
