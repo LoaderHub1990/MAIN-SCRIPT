@@ -1,0 +1,563 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local HttpService = game:GetService("HttpService")
+local LocalPlayer = Players.LocalPlayer
+
+local UI_URL = "https://raw.githubusercontent.com/LoaderHub1990/Flexozy-UI/main/FlexozyUI.lua"
+local okUI, Flexozy = pcall(function()
+    return loadstring(game:HttpGet(UI_URL))()
+end)
+if not okUI or type(Flexozy) ~= "table" or type(Flexozy.CreateWindow) ~= "function" then
+    warn("Flexozy UI โหลดไม่สำเร็จ: " .. tostring(Flexozy))
+    return
+end
+
+local Window = Flexozy:CreateWindow({
+    Title = "Flexozy",
+    SubTitle = "1 Million Items",
+    Monogram = "FX",
+    Logo = 112028775617493,
+    Size = Vector2.new(720, 520),
+    Accent = "Violet",
+    ToggleKey = Enum.KeyCode.RightControl,
+    Language = "TH",
+    LanguageScope = "All",
+    Folder = "Flexozy",
+    ConfigName = "1MillionItems"
+})
+
+-- คำแปลสำหรับข้อความของสคริปต์เอง
+-- Flexozy UI จะสลับข้อความที่สร้างไว้แล้วทันทีเมื่อเปลี่ยนภาษาใน Settings
+Window:AddTranslations({
+    ["Main"] = "หน้าหลัก",
+    ["Auto Play"] = "เล่นอัตโนมัติ",
+    ["Upgrade"] = "อัปเกรด",
+    ["Rebirth"] = "เกิดใหม่",
+    ["Movement"] = "การเคลื่อนที่",
+    ["Tools"] = "เครื่องมือ",
+    ["Settings"] = "ตั้งค่า",
+    ["Info"] = "ข้อมูล",
+    ["Map & Server Info"] = "ข้อมูลแมพและเซิร์ฟเวอร์",
+    ["Automation Controls"] = "ควบคุมระบบอัตโนมัติ",
+    ["Purchase Upgrades"] = "ซื้อการอัปเกรด",
+    ["Rebirth and Prestige"] = "เกิดใหม่และเลื่อนขั้น",
+    ["Speed and Flight"] = "ความเร็วและการบิน",
+    ["Additional Tools"] = "เครื่องมือเพิ่มเติม",
+    ["Theme and UI Options"] = "ธีมและตัวเลือก UI",
+    ["Game and Performance"] = "ข้อมูลเกมและประสิทธิภาพ",
+    ["Auto Sell Items"] = "ขายไอเทมอัตโนมัติ",
+    ["ขายไอเทมที่เก็บได้อัตโนมัติ"] = "ขายไอเทมที่เก็บได้อัตโนมัติ",
+    ["Auto Sell Gem Dealer"] = "แลกไอเทมเป็น Gem อัตโนมัติ",
+    ["ขายไอเทมแลก Gem เมื่อครบ 250"] = "แลกไอเทมเป็น Gem เมื่อครบ 250 ชิ้น",
+    ["Auto Claim Index Rewards"] = "รับรางวัล Index อัตโนมัติ",
+    ["Auto Equip Best Pusher"] = "สวมใส่ Pusher ที่ดีที่สุดอัตโนมัติ",
+    ["Auto Buy Trail"] = "ซื้อ Trail อัตโนมัติ",
+    ["Auto Buy Aura"] = "ซื้อ Aura อัตโนมัติ",
+    ["Auto Abilities"] = "ใช้ความสามารถอัตโนมัติ",
+    ["Rebirth / Prestige"] = "เกิดใหม่ / เลื่อนขั้น",
+    ["Auto Rebirth"] = "เกิดใหม่อัตโนมัติ",
+    ["Auto Prestige"] = "เลื่อนขั้นอัตโนมัติ",
+    ["Upgrades"] = "การอัปเกรด",
+    ["Select Upgrade Mode"] = "เลือกรูปแบบการอัปเกรด",
+    ["Faster Cash"] = "เพิ่มเงินที่ได้รับ",
+    ["Faster Walk"] = "เพิ่มความเร็วเดิน",
+    ["Faster Item Drops"] = "เพิ่มความเร็วการเกิดไอเทม",
+    ["Drop Count +1"] = "จำนวนไอเทมที่ดรอป +1",
+    ["Item Capacity Limit"] = "เพิ่มความจุไอเทม",
+    ["Friend Cash Boost"] = "โบนัสเงินจากเพื่อน",
+    ["Infinite Streak Freeze"] = "หยุด Streak แบบไม่จำกัด",
+    ["Equip Pusher"] = "สวมใส่ Pusher",
+    ["Sell Current Items"] = "ขายไอเทมที่มีอยู่",
+    ["Speed"] = "ความเร็ว",
+    ["Enable Speed"] = "เปิดใช้งานความเร็ว",
+    ["Fly"] = "การบิน",
+    ["Enable Fly"] = "เปิดใช้งานการบิน",
+    ["Fly Speed"] = "ความเร็วในการบิน",
+    ["Vertical Fly Speed"] = "ความเร็วบินแนวตั้ง",
+    ["Vertical Fly Keys"] = "ปุ่มบินขึ้น/ลง",
+    ["Movement Tools"] = "เครื่องมือการเคลื่อนที่",
+    ["Infinite Jump"] = "กระโดดไม่จำกัด",
+    ["Noclip"] = "ทะลุสิ่งกีดขวาง",
+    ["Mouse Teleport"] = "วาร์ปไปยังตำแหน่งเมาส์",
+    ["ย้ายตัวละครไปยังตำแหน่งเมาส์"] = "ย้ายตัวละครไปยังตำแหน่งเมาส์",
+    ["Game Information"] = "ข้อมูลเกม",
+    ["Show Map / FPS Info"] = "แสดงข้อมูลแมพ / FPS",
+    ["View the current map name and FPS"] = "ดูชื่อแมพและ FPS ปัจจุบัน",
+    ["UI Controls"] = "ควบคุม UI",
+    ["Show Toggle Key"] = "แสดงปุ่มเปิด/ปิด UI",
+    ["The UI visibility key is Right Control"] = "ปุ่มเปิด/ปิด UI คือ Right Control",
+    ["UI Settings"] = "การตั้งค่า UI",
+    ["Toggle key: Right Control"] = "ปุ่มเปิด/ปิด: Right Control",
+    ["Error"] = "ข้อผิดพลาด",
+    ["Map: "] = "แมพ: ",
+    ["FPS: "] = "FPS: ",
+    ["Place ID: "] = "รหัสแมพ: ",
+    ["Flexozy"] = "Flexozy",
+    ["1 Million Items"] = "1 Million Items",
+})
+Window:SetLanguageScope("All")
+
+local MainTab = Window:Tab({Title = "หน้าหลัก", Icon = "Grid", Subtitle = "ข้อมูลแมพและเซิร์ฟเวอร์"})
+local AutoTab = Window:Tab({Title = "เล่นอัตโนมัติ", Icon = "Zap", Subtitle = "ควบคุมระบบอัตโนมัติ"})
+local UpgradeTab = Window:Tab({Title = "อัปเกรด", Icon = "TrendingUp", Subtitle = "ซื้อการอัปเกรด"})
+local RebirthTab = Window:Tab({Title = "เกิดใหม่", Icon = "RefreshCw", Subtitle = "เกิดใหม่และเลื่อนขั้น"})
+local MovementTab = Window:Tab({Title = "การเคลื่อนที่", Icon = "Move", Subtitle = "ความเร็วและการบิน"})
+local ToolsTab = Window:Tab({Title = "เครื่องมือ", Icon = "Wrench", Subtitle = "เครื่องมือเพิ่มเติม"})
+local SettingsTab = Window:Tab({Title = "ตั้งค่า", Icon = "Settings", Subtitle = "ธีมและตัวเลือก UI"})
+local InfoTab = Window:Tab({Title = "ข้อมูล", Icon = "Info", Subtitle = "ข้อมูลเกมและประสิทธิภาพ"})
+
+-- Built-in Flexozy settings: theme, UI scale/size, and other interface options.
+if type(Window.BuildSettings) == "function" then
+    local okSettings, errSettings = pcall(function()
+        Window:BuildSettings(SettingsTab)
+    end)
+    if not okSettings then
+        warn("สร้างแผงตั้งค่า Flexozy ไม่สำเร็จ: " .. tostring(errSettings))
+    end
+else
+    warn("FlexozyUI.lua เวอร์ชันนี้ไม่มี BuildSettings")
+end
+
+-- Use the dashboard already built into FlexozyUI.lua.
+-- Keep the existing Auto Play controls and all other systems below it.
+if type(Window.BuildHome) == "function" then
+    local okHome, errHome = pcall(function()
+        Window:BuildHome(MainTab)
+    end)
+    if not okHome then
+        warn("สร้างหน้าแดชบอร์ด Flexozy ไม่สำเร็จ: " .. tostring(errHome))
+    end
+else
+    warn("FlexozyUI.lua เวอร์ชันนี้ไม่มี BuildHome")
+end
+
+-- Discord profile/server card provided by Flexozy UI, matching the example.
+local discordInvite = "https://discord.gg/WFUejxeggt"
+if type(Window.BuildDiscord) == "function" then
+    local okDiscord, errDiscord = pcall(function()
+        Window:BuildDiscord(MainTab, discordInvite)
+    end)
+    if not okDiscord then
+        warn("สร้างการ์ด Discord Flexozy ไม่สำเร็จ: " .. tostring(errDiscord))
+    end
+else
+    warn("FlexozyUI.lua เวอร์ชันนี้ไม่มี BuildDiscord")
+end
+
+local function getServiceFolder(parent, name)
+    local ok, result = pcall(function()
+        return parent:WaitForChild(name, 15)
+    end)
+    if ok then return result end
+end
+
+local Remotes = getServiceFolder(ReplicatedStorage, "Remotes")
+if not Remotes then
+    Window:Notify({Title = "ข้อผิดพลาด", Content = "ไม่พบ ReplicatedStorage.Remotes", Type = "Error", Force = true})
+    return
+end
+
+local function getRemote(name)
+    return Remotes:FindFirstChild(name) or Remotes:WaitForChild(name, 10)
+end
+
+local Remote = {
+    SellItem = getRemote("SellItem"),
+    BuyUpgrade = getRemote("BuyUpgrade"),
+    BuyRebirth = getRemote("BuyRebirth"),
+    BuyPrestige = getRemote("BuyPrestige"),
+    ClaimIndexReward = getRemote("ClaimIndexReward"),
+    SellItemsForGems = getRemote("SellItemsForGems"),
+    SetStreakUIFrozen = getRemote("SetStreakUIFrozen"),
+    EquipPusher = getRemote("EquipPusher"),
+    BuyEquipTrail = getRemote("BuyEquipTrail"),
+    BuyEquipAura = getRemote("BuyEquipAura")
+}
+
+local Others = ReplicatedStorage:FindFirstChild("Others")
+local function requireModule(name)
+    if not Others then return nil end
+    local module = Others:FindFirstChild(name)
+    if not module or not module:IsA("ModuleScript") then return nil end
+    local ok, result = pcall(require, module)
+    if ok then return result end
+    return nil
+end
+
+local RebirthPricing = requireModule("RebirthPricing")
+local PrestigeConfig = requireModule("PrestigeConfig")
+local PusherShop = requireModule("PusherShop")
+local TrailShop = requireModule("TrailShop")
+local AuraShop = requireModule("AuraShop")
+
+local leaderstats = LocalPlayer:WaitForChild("leaderstats")
+local Cash = leaderstats:WaitForChild("Cash")
+local Rebirth = leaderstats:WaitForChild("Rebirth")
+local Prestige = leaderstats:WaitForChild("Prestige")
+local Collected = leaderstats:WaitForChild("Collected")
+local HiddenStats = LocalPlayer:WaitForChild("HiddenStats")
+local TotalItems = HiddenStats:WaitForChild("TotalItems")
+local Gems = HiddenStats:WaitForChild("Gem")
+local TrailOwned = HiddenStats:WaitForChild("TrailOwned")
+local AuraOwned = HiddenStats:WaitForChild("AuraOwned")
+local PusherOwned = LocalPlayer:WaitForChild("PusherOwned")
+local Index = HiddenStats:WaitForChild("Index")
+local LocalItems = workspace:WaitForChild("LocalItems")
+
+local Pushers = {"Chainsaw", "Bulldozer", "Paint", "Brush", "Web", "Duck", "Frog", "Snow", "Moon", "Crimson", "Charcoal", "Candy", "Aqua", "Olive", "Pusher"}
+local Trails = {"Crimson", "Prismatic", "Aureolin", "Saffron", "Viridian", "Cerulean", "Vivid", "Orchid", "Fuchsia", "Amaranth", "Glaucous", "Celadon", "Iridescent", "Opalescent", "Monochrome", "Rainbow", "Black", "Red", "Purple", "Blue", "Green", "Yellow", "Orange", "White"}
+local Auras = {"CelestialAura", "ElysianAura", "RavagerAura", "SakuraAura", "AngelAura", "TimeAura", "DivineAura", "RageAura", "SoulAura", "LightningAura", "ShadowAura", "MagicAura", "LoveAura", "WaterAura", "CardAura", "RedAura"}
+
+local State = {
+    AutoSell = false,
+    AutoGemDealer = false,
+    AutoClaimIndex = false,
+    AutoPusher = false,
+    AutoTrail = false,
+    AutoAura = false,
+    AutoAbilities = false,
+    AutoRebirth = false,
+    AutoPrestige = false,
+    UpgradeMode = "x1",
+    FreezeStreak = false,
+    CashUpgrades = {
+        CashMultiplier = false,
+        PlayerWalkspeed = false,
+        SpawnSpeed = false,
+        DropAmount = false,
+        CapacityLimit = false,
+        FriendBoost = false
+    },
+    SpeedEnabled = false,
+    SpeedValue = 16,
+    FlyEnabled = false,
+    FlySpeed = 16,
+    FlyVerticalSpeed = 25,
+    FlyUpKey = Enum.KeyCode.Space,
+    FlyDownKey = Enum.KeyCode.LeftShift,
+    InfiniteJump = false,
+    Noclip = false
+}
+
+local function fire(remote, ...)
+    if remote and remote:IsA("RemoteEvent") then
+        local args = table.pack(...)
+        pcall(function()
+            remote:FireServer(table.unpack(args, 1, args.n))
+        end)
+    end
+end
+
+local function equipPusher()
+    local character = LocalPlayer.Character
+    if not character then return false end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return false end
+    local tool = character:FindFirstChildWhichIsA("Tool")
+    if tool and (tool.Name:find("Pusher") or table.find(Pushers, tool.Name)) then return true end
+    local current = LocalPlayer:FindFirstChild("PusherCurrent")
+    local wanted = current and current.Value or "Pusher"
+    local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+    if not backpack then return false end
+    local found = backpack:FindFirstChild(wanted) or backpack:FindFirstChild("Pusher")
+    if not found then
+        for _, name in ipairs(Pushers) do
+            found = backpack:FindFirstChild(name)
+            if found then break end
+        end
+    end
+    if found then
+        pcall(function() humanoid:EquipTool(found) end)
+        return true
+    end
+    fire(Remote.EquipPusher, wanted)
+    return false
+end
+
+local soldTokens = {}
+local function sellItem(item)
+    if not State.AutoSell or not item or not item.Parent or item.Name == "Rat" then return end
+    local token = item:GetAttribute("SellToken")
+    if not token or soldTokens[token] then return end
+    soldTokens[token] = true
+    local readyAt = item:GetAttribute("SellReadyAt")
+    local delayTime = readyAt and math.max(0, readyAt - time()) or 0
+    if delayTime > 0 then task.wait(delayTime) end
+    if not State.AutoSell or not item.Parent or item:GetAttribute("SellInProgress") then return end
+    item:SetAttribute("SellInProgress", true)
+    local itemName = item:GetAttribute("VIPGem") and "Gem" or item.Name
+    fire(Remote.SellItem, itemName, token)
+    pcall(function() item:Destroy() end)
+end
+
+local sellConnection
+local function setAutoSell(enabled)
+    State.AutoSell = enabled
+    soldTokens = {}
+    if sellConnection then sellConnection:Disconnect() sellConnection = nil end
+    if enabled then
+        for _, item in ipairs(LocalItems:GetChildren()) do
+            task.spawn(sellItem, item)
+        end
+        sellConnection = LocalItems.ChildAdded:Connect(function(item)
+            task.spawn(sellItem, item)
+        end)
+    end
+end
+
+local function getCurrentValue(player, names, fallback)
+    for _, name in ipairs(names) do
+        local value = player:FindFirstChild(name) or HiddenStats:FindFirstChild(name)
+        if value and value:IsA("ValueBase") then return value.Value end
+    end
+    return fallback
+end
+
+local function runAutomation()
+    while task.wait(0.2) do
+        if State.AutoRebirth and RebirthPricing then
+            pcall(function()
+                local price = RebirthPricing.GetPrice(Rebirth.Value)
+                local ready = PrestigeConfig and PrestigeConfig.IsPrestigeReady and PrestigeConfig.IsPrestigeReady(Prestige.Value, Rebirth.Value)
+                if price and price <= Cash.Value and not ready then
+                    fire(Remote.BuyRebirth, HttpService:GenerateGUID(false), Rebirth.Value, Prestige.Value)
+                end
+            end)
+        end
+        if State.AutoPrestige and PrestigeConfig then
+            pcall(function()
+                if PrestigeConfig.IsPrestigeReady and PrestigeConfig.IsPrestigeReady(Prestige.Value, Rebirth.Value) then
+                    fire(Remote.BuyPrestige, HttpService:GenerateGUID(false), Rebirth.Value, Prestige.Value)
+                end
+            end)
+        end
+        if State.AutoClaimIndex then
+            pcall(function()
+                local allCollected = true
+                for _, item in ipairs(Index:GetChildren()) do
+                    if item:IsA("BoolValue") and not item.Value then
+                        allCollected = false
+                        break
+                    end
+                end
+                if allCollected then fire(Remote.ClaimIndexReward, "ALL") end
+            end)
+        end
+        if State.AutoGemDealer then
+            pcall(function()
+                if TotalItems.Value >= 250 then fire(Remote.SellItemsForGems) end
+            end)
+        end
+        if State.AutoPusher and PusherShop then
+            pcall(function()
+                local current = LocalPlayer:FindFirstChild("PusherCurrent")
+                for _, name in ipairs(Pushers) do
+                    local requirement = PusherShop.GetRequirement and PusherShop.GetRequirement(name)
+                    local owned = PusherOwned:FindFirstChild(name)
+                    local has = owned and owned.Value == true
+                    local canUnlock = PusherShop.CanUnlockHere and PusherShop.CanUnlockHere(name)
+                    if has or (requirement and requirement <= Collected.Value and canUnlock) then
+                        if not current or current.Value ~= name then fire(Remote.EquipPusher, name) end
+                        break
+                    end
+                end
+            end)
+        end
+        if State.AutoTrail and TrailShop then
+            pcall(function()
+                for _, name in ipairs(Trails) do
+                    if TrailOwned:FindFirstChild(name) then break end
+                    local price = TrailShop.GetPrice and TrailShop.GetPrice(name)
+                    if price and price <= Cash.Value then
+                        fire(Remote.BuyEquipTrail, name)
+                        break
+                    end
+                end
+            end)
+        end
+        if State.AutoAura and AuraShop then
+            pcall(function()
+                for _, name in ipairs(Auras) do
+                    if AuraOwned:FindFirstChild(name) then break end
+                    local previous = AuraShop.GetPreviousAura and AuraShop.GetPreviousAura(name)
+                    if (not previous or AuraOwned:FindFirstChild(previous)) then
+                        local price = AuraShop.GetPrice and AuraShop.GetPrice(name)
+                        if price and price <= Gems.Value then
+                            fire(Remote.BuyEquipAura, name)
+                            break
+                        end
+                    end
+                end
+            end)
+        end
+        for name, enabled in pairs(State.CashUpgrades) do
+            if enabled then
+                pcall(function() fire(Remote.BuyUpgrade, name, State.UpgradeMode == "max") end)
+            end
+        end
+        if State.AutoAbilities and os.clock() - (State.LastAbility or 0) >= 1.5 then
+            if equipPusher() then
+                pcall(function()
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                    task.wait(0.05)
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                end)
+                State.LastAbility = os.clock()
+            end
+        end
+        if State.FreezeStreak then fire(Remote.SetStreakUIFrozen, true) end
+    end
+end
+task.spawn(runAutomation)
+
+local autoGroup = AutoTab:Group("เล่นอัตโนมัติ")
+autoGroup:Toggle({Title = "ขายไอเทมอัตโนมัติ", Desc = "ขายไอเทมที่เก็บได้อัตโนมัติ", Callback = setAutoSell})
+autoGroup:Toggle({Title = "แลกไอเทมเป็น Gem อัตโนมัติ", Desc = "แลกไอเทมเป็น Gem เมื่อครบ 250 ชิ้น", Callback = function(v) State.AutoGemDealer = v end})
+autoGroup:Toggle({Title = "รับรางวัล Index อัตโนมัติ", Callback = function(v) State.AutoClaimIndex = v end})
+autoGroup:Toggle({Title = "สวมใส่ Pusher ที่ดีที่สุดอัตโนมัติ", Callback = function(v) State.AutoPusher = v end})
+autoGroup:Toggle({Title = "ซื้อ Trail อัตโนมัติ", Callback = function(v) State.AutoTrail = v end})
+autoGroup:Toggle({Title = "ซื้อ Aura อัตโนมัติ", Callback = function(v) State.AutoAura = v end})
+autoGroup:Toggle({Title = "ใช้ความสามารถอัตโนมัติ", Callback = function(v) State.AutoAbilities = v end})
+
+local progressionGroup = RebirthTab:Group("เกิดใหม่ / เลื่อนขั้น")
+progressionGroup:Toggle({Title = "เกิดใหม่อัตโนมัติ", Callback = function(v) State.AutoRebirth = v end})
+progressionGroup:Toggle({Title = "เลื่อนขั้นอัตโนมัติ", Callback = function(v) State.AutoPrestige = v end})
+
+local upgradeGroup = UpgradeTab:Group("การอัปเกรด")
+upgradeGroup:Dropdown({
+    Title = "เลือกรูปแบบการอัปเกรด",
+    Options = {"x1", "max"},
+    Default = "x1",
+    Callback = function(v) State.UpgradeMode = v end
+})
+upgradeGroup:Toggle({Title = "เพิ่มเงินที่ได้รับ", Callback = function(v) State.CashUpgrades.CashMultiplier = v end})
+upgradeGroup:Toggle({Title = "เพิ่มความเร็วเดิน", Callback = function(v) State.CashUpgrades.PlayerWalkspeed = v end})
+upgradeGroup:Toggle({Title = "เพิ่มความเร็วการเกิดไอเทม", Callback = function(v) State.CashUpgrades.SpawnSpeed = v end})
+upgradeGroup:Toggle({Title = "จำนวนไอเทมที่ดรอป +1", Callback = function(v) State.CashUpgrades.DropAmount = v end})
+upgradeGroup:Toggle({Title = "เพิ่มความจุไอเทม", Callback = function(v) State.CashUpgrades.CapacityLimit = v end})
+upgradeGroup:Toggle({Title = "โบนัสเงินจากเพื่อน", Callback = function(v) State.CashUpgrades.FriendBoost = v end})
+
+local miscGroup = ToolsTab:Group("เครื่องมือเพิ่มเติม")
+miscGroup:Toggle({Title = "หยุด Streak แบบไม่จำกัด", Callback = function(v)
+    State.FreezeStreak = v
+    fire(Remote.SetStreakUIFrozen, v)
+end})
+miscGroup:Button({Title = "สวมใส่ Pusher", Callback = equipPusher})
+miscGroup:Button({Title = "ขายไอเทมที่มีอยู่", Callback = function()
+    for _, item in ipairs(LocalItems:GetChildren()) do task.spawn(sellItem, item) end
+end})
+
+local speedGroup = MovementTab:Group("ความเร็ว")
+speedGroup:Toggle({Title = "เปิดใช้งานความเร็ว", Callback = function(v) State.SpeedEnabled = v end})
+speedGroup:Slider({Title = "ความเร็ว", Min = 16, Max = 300, Default = 16, Step = 1, Callback = function(v) State.SpeedValue = v end})
+
+local flyGroup = MovementTab:Group("การบิน")
+flyGroup:Toggle({Title = "เปิดใช้งานการบิน", Callback = function(v) State.FlyEnabled = v end})
+flyGroup:Slider({Title = "ความเร็วในการบิน", Min = 16, Max = 300, Default = 16, Step = 1, Callback = function(v) State.FlySpeed = v end})
+flyGroup:Slider({Title = "ความเร็วบินแนวตั้ง", Min = 25, Max = 500, Default = 25, Step = 1, Callback = function(v) State.FlyVerticalSpeed = v end})
+flyGroup:Dropdown({Title = "ปุ่มบินขึ้น/ลง", Options = {"Space/Shift", "Space/LeftControl", "Q/E"}, Default = "Space/Shift", Callback = function(v)
+    if v == "Space/Shift" then
+        State.FlyUpKey, State.FlyDownKey = Enum.KeyCode.Space, Enum.KeyCode.LeftShift
+    elseif v == "Space/LeftControl" then
+        State.FlyUpKey, State.FlyDownKey = Enum.KeyCode.Space, Enum.KeyCode.LeftControl
+    else
+        State.FlyUpKey, State.FlyDownKey = Enum.KeyCode.Q, Enum.KeyCode.E
+    end
+end})
+
+local movementGroup = MovementTab:Group("เครื่องมือการเคลื่อนที่")
+movementGroup:Toggle({Title = "กระโดดไม่จำกัด", Callback = function(v) State.InfiniteJump = v end})
+movementGroup:Toggle({Title = "ทะลุสิ่งกีดขวาง", Callback = function(v) State.Noclip = v end})
+movementGroup:Button({Title = "วาร์ปไปยังตำแหน่งเมาส์", Desc = "ย้ายตัวละครไปยังตำแหน่งเมาส์", Callback = function()
+    local character = LocalPlayer.Character
+    local mouse = LocalPlayer:GetMouse()
+    if character and mouse and mouse.Hit then
+        character:PivotTo(CFrame.new(mouse.Hit.Position + Vector3.new(0, 3, 0)))
+    end
+end})
+
+local infoGroup = InfoTab:Group("ข้อมูลเกม")
+local currentFPS = 0
+local frameCount, lastFPSUpdate = 0, os.clock()
+RunService.RenderStepped:Connect(function()
+    frameCount += 1
+    local now = os.clock()
+    if now - lastFPSUpdate >= 1 then
+        currentFPS = math.floor(frameCount / (now - lastFPSUpdate) + 0.5)
+        frameCount = 0
+        lastFPSUpdate = now
+    end
+end)
+
+infoGroup:Button({Title = "แสดงข้อมูลแมพ / FPS", Desc = "ดูชื่อแมพและ FPS ปัจจุบัน", Callback = function()
+    local mapName = "ไม่ทราบชื่อแมพ"
+    pcall(function()
+        mapName = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name
+    end)
+    Window:Notify({
+        Title = "ข้อมูลเกม",
+        Content = "แมพ: " .. tostring(mapName) .. "\\nFPS: " .. tostring(currentFPS) .. "\\nPlace ID: " .. tostring(game.PlaceId),
+        Type = "Info",
+        Force = true
+    })
+end})
+
+local settingsInfoGroup = SettingsTab:Group("ควบคุม UI")
+settingsInfoGroup:Button({Title = "แสดงปุ่มเปิด/ปิด UI", Desc = "ปุ่มเปิด/ปิด UI คือ Right Control", Callback = function()
+    Window:Notify({Title = "การตั้งค่า UI", Content = "ปุ่มเปิด/ปิด: Right Control", Type = "Info", Force = true})
+end})
+
+local function applyCharacter(character)
+    local humanoid = character:WaitForChild("Humanoid", 10)
+    local root = character:WaitForChild("HumanoidRootPart", 10)
+    if humanoid and root then
+        task.spawn(function()
+            while character.Parent and LocalPlayer.Character == character do
+                local dt = RunService.Heartbeat:Wait()
+                if State.SpeedEnabled and humanoid.Health > 0 then
+                    local direction = humanoid.MoveDirection
+                    if direction.Magnitude > 0 then
+                        root.AssemblyLinearVelocity = Vector3.new(direction.X * State.SpeedValue, root.AssemblyLinearVelocity.Y, direction.Z * State.SpeedValue)
+                    end
+                end
+                if State.FlyEnabled and root.Parent then
+                    local camera = workspace.CurrentCamera
+                    if camera then
+                        local velocity = Vector3.zero
+                        local look = Vector3.new(camera.CFrame.LookVector.X, 0, camera.CFrame.LookVector.Z)
+                        local right = Vector3.new(camera.CFrame.RightVector.X, 0, camera.CFrame.RightVector.Z)
+                        if look.Magnitude > 0 then look = look.Unit end
+                        if right.Magnitude > 0 then right = right.Unit end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.W) then velocity += look * State.FlySpeed end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.S) then velocity -= look * State.FlySpeed end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.A) then velocity -= right * State.FlySpeed end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.D) then velocity += right * State.FlySpeed end
+                        if UserInputService:IsKeyDown(State.FlyUpKey) then velocity += Vector3.new(0, State.FlyVerticalSpeed, 0) end
+                        if UserInputService:IsKeyDown(State.FlyDownKey) then velocity -= Vector3.new(0, State.FlyVerticalSpeed, 0) end
+                        root.AssemblyLinearVelocity = velocity
+                    end
+                end
+                if State.Noclip then
+                    for _, part in ipairs(character:GetDescendants()) do
+                        if part:IsA("BasePart") then part.CanCollide = false end
+                    end
+                end
+            end
+        end)
+    end
+end
+
+if LocalPlayer.Character then task.spawn(applyCharacter, LocalPlayer.Character) end
+LocalPlayer.CharacterAdded:Connect(applyCharacter)
+
+UserInputService.JumpRequest:Connect(function()
+    if not State.InfiniteJump then return end
+    local character = LocalPlayer.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    if humanoid then humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end
+end)
+
+Window:Notify({Title = "Flexozy", Content = "โหลด UI และระบบหลักเรียบร้อย", Type = "Success", Force = true})
